@@ -41,11 +41,11 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8">
+    <div className="min-h-screen bg-gray-100 p-4 sm:p-8">
       <div className="max-w-xl mx-auto bg-white rounded-2xl shadow-lg p-6">
-        <h1 className="text-black font-bold mb-4 text-center">🎯 Scorekeeper</h1>
+        <h1 className="text-black font-bold mb-4 text-center text-2xl sm:text-3xl">🎯 Scorekeeper</h1>
 
-        <div className="flex gap-2 mb-6">
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
           <input
             value={newPlayerName}
             onChange={(e) => setNewPlayerName(e.target.value)}
@@ -64,14 +64,14 @@ export default function Home() {
           {players.map((player) => (
             <li
               key={player.id}
-              className="flex items-center justify-between bg-gray-50 p-4 rounded-md shadow-sm"
+              className="flex flex-col sm:flex-row items-center justify-between bg-gray-50 p-4 rounded-md shadow-sm"
             >
-              <div>
+              <div className="flex-grow">
                 <p className="font-semibold text-lg text-black">{player.name}</p>
                 <p className="text-black">Score: {player.score}</p>
               </div>
 
-              <div className="flex items-center gap-2 text-black">
+              <div className="flex items-center gap-2 mt-4 sm:mt-0 text-black">
                 <input
                   type="text"
                   value={scoreInputs[player.id] || ""}
@@ -87,7 +87,6 @@ export default function Home() {
                 >
                   Apply
                 </button>
-                {/* Add Remove button */}
                 <button
                   onClick={() => removePlayer(player.id)}
                   className="px-3 py-1 bg-red-500 text-white rounded-md hover:bg-red-600 transition"
