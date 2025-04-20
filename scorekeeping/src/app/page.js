@@ -43,7 +43,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-100 p-4 sm:p-8">
       <div className="max-w-xl mx-auto bg-white rounded-2xl shadow-lg p-6">
-        <h1 className="text-black font-bold mb-4 text-center text-2xl sm:text-3xl">🎯 Scorekeeper</h1>
+        <h1 className="text-black font-bold mb-4 text-center text-2xl sm:text-3xl">Scores</h1>
 
         <div className="flex flex-col sm:flex-row gap-4 mb-6">
           <input
@@ -54,7 +54,7 @@ export default function Home() {
           />
           <button
             onClick={addPlayer}
-            className="px-4 py-2 bg-blue-500 text-black rounded-md hover:bg-blue-600 transition"
+            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
           >
             Add
           </button>
