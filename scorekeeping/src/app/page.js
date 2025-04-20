@@ -33,6 +33,13 @@ export default function Home() {
     setScoreInputs({ ...scoreInputs, [id]: value });
   };
 
+  const removePlayer = (id) => {
+    setPlayers(players.filter((player) => player.id !== id));
+    const updatedScoreInputs = { ...scoreInputs };
+    delete updatedScoreInputs[id];
+    setScoreInputs(updatedScoreInputs);
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 p-8">
       <div className="max-w-xl mx-auto bg-white rounded-2xl shadow-lg p-6">
@@ -79,6 +86,13 @@ export default function Home() {
                   className="px-3 py-1 bg-green-500 text-white rounded-md hover:bg-green-600 transition"
                 >
                   Apply
+                </button>
+                {/* Add Remove button */}
+                <button
+                  onClick={() => removePlayer(player.id)}
+                  className="px-3 py-1 bg-red-500 text-white rounded-md hover:bg-red-600 transition"
+                >
+                  Remove
                 </button>
               </div>
             </li>
