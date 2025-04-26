@@ -29,7 +29,12 @@ export default function Home() {
       .then(({ data, error }) => {
         if (error) console.error("Error fetching players:", error);
         else {
-          setPlayers(data);
+          // Initialize history for each player
+          const playersWithHistory = data.map(player => ({
+            ...player,
+            history: player.history || []
+          }));
+          setPlayers(playersWithHistory);
           const inputs = {};
           data.forEach((p) => (inputs[p.id] = ""));
           setScoreInputs(inputs);
@@ -48,9 +53,13 @@ export default function Home() {
             const { eventType, new: NEW, old: OLD } = payload;
 
             if (eventType === "INSERT") {
-              updated.unshift(NEW);
+              updated.unshift({ ...NEW, history: NEW.history || [] });
             } else if (eventType === "UPDATE") {
-              updated = cur.map((p) => (p.id === NEW.id ? NEW : p));
+              updated = cur.map((p) => 
+                p.id === NEW.id 
+                  ? { ...NEW, history: NEW.history || [] }
+                  : p
+              );
             } else if (eventType === "DELETE") {
               updated = cur.filter((p) => p.id !== OLD.id);
             }
@@ -125,6 +134,10 @@ export default function Home() {
     const player = players.find((p) => p.id === id);
     const newScore = player.score + delta;
     const timestamp = new Date();
+    const newHistory = [
+      { id: Date.now(), value: delta, timestamp, isReset: false },
+      ...(player.history || [])
+    ];
     
     // Update local state immediately
     setPlayers(prev => prev.map(p => 
@@ -133,20 +146,18 @@ export default function Home() {
             ...p, 
             score: newScore, 
             updated_at: timestamp,
-            history: [
-              { id: Date.now(), value: delta, timestamp, isReset: false },
-              ...(p.history || [])
-            ]
+            history: newHistory
           }
         : p
     ));
     
-    // Update database - only update score and timestamp for now
+    // Update database
     const { error } = await supabase
       .from("players")
       .update({ 
         score: newScore, 
-        updated_at: timestamp
+        updated_at: timestamp,
+        history: newHistory
       })
       .eq("id", id);
       
@@ -190,6 +201,12 @@ export default function Home() {
   const resetAllScores = async () => {
     try {
       const timestamp = new Date();
+      const newHistory = players.map(p => ({
+        id: Date.now(),
+        value: 0,
+        timestamp,
+        isReset: true
+      }));
       
       // Update local state immediately
       setPlayers(prev => prev.map(p => ({
@@ -202,12 +219,13 @@ export default function Home() {
         ]
       })));
 
-      // Update database - only update score and timestamp for now
+      // Update database
       const { data, error } = await supabase
         .from("players")
         .update({ 
           score: 0, 
-          updated_at: timestamp
+          updated_at: timestamp,
+          history: newHistory
         })
         .gte('id', '00000000-0000-0000-0000-000000000000')
         .select();
