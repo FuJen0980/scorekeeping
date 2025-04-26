@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase } from "./lib/supabase";
+import { createSupabaseClient } from "./lib/supabase";
 
 export default function Home() {
   const [players, setPlayers] = useState([]);
@@ -9,9 +9,18 @@ export default function Home() {
   const [selectedColor, setSelectedColor] = useState("bg-purple-100");
   const [scoreInputs, setScoreInputs] = useState({});
   const [sounds, setSounds] = useState({ positive: null, negative: null, reset: null });
+  const [supabase, setSupabase] = useState(null);
+
+  // Initialize Supabase client
+  useEffect(() => {
+    const client = createSupabaseClient();
+    setSupabase(client);
+  }, []);
 
   // Fetch players & subscribe to changes via Supabase v2 real-time channels
   useEffect(() => {
+    if (!supabase) return; // Don't run if supabase isn't initialized
+
     // Initial fetch
     supabase
       .from("players")
@@ -55,7 +64,7 @@ export default function Home() {
     return () => {
       supabase.removeChannel(playersChannel);
     };
-  }, []);
+  }, [supabase]);
 
   // Load sounds once
   useEffect(() => {
