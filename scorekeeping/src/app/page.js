@@ -40,7 +40,7 @@ export default function Home() {
     fetchPlayers();
 
     // Set up polling every 2 seconds
-    const pollInterval = setInterval(fetchPlayers, 2000);
+    const pollInterval = setInterval(fetchPlayers, 10000);
 
     // Set up a real-time channel for INSERT, UPDATE, DELETE
     const playersChannel = supabase
