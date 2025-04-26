@@ -7,63 +7,60 @@ export default function Home() {
   const [newPlayerName, setNewPlayerName] = useState("");
   const [selectedColor, setSelectedColor] = useState("bg-purple-100");
   const [scoreInputs, setScoreInputs] = useState({});
-  const [audioContext, setAudioContext] = useState(null);
+  const [sounds, setSounds] = useState({
+    positive: null,
+    negative: null,
+    reset: null
+  });
   
-  // Initialize the Audio Context when the component mounts
+  // Load sounds when component mounts
   useEffect(() => {
-    // Create audio context on component mount
-    // We need to do this in useEffect because AudioContext needs the browser environment
-    const context = new (window.AudioContext || window.webkitAudioContext)();
-    setAudioContext(context);
+    // Create Audio objects for each sound type
+    const positiveSound = new Audio("/sounds/positive.mp3");
+    const negativeSound = new Audio("/sounds/negative.mp3");
+    const resetSound = new Audio("/sounds/reset.mp3");
     
-    // Clean up function
+    // Set the volume
+    positiveSound.volume = 0.5;
+    negativeSound.volume = 0.5;
+    resetSound.volume = 0.5;
+    
+    // Store Audio objects in state
+    setSounds({
+      positive: positiveSound,
+      negative: negativeSound,
+      reset: resetSound
+    });
+    
+    // Preload the sounds
+    positiveSound.load();
+    negativeSound.load();
+    resetSound.load();
+    
+    // Cleanup function
     return () => {
-      if (context) {
-        context.close();
-      }
+      positiveSound.pause();
+      negativeSound.pause();
+      resetSound.pause();
     };
   }, []);
   
-  // Function to play a positive score sound (happy upward tone)
-  const playPositiveSound = () => {
-    if (!audioContext) return;
-    
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(300, audioContext.currentTime);
-    oscillator.frequency.exponentialRampToValueAtTime(600, audioContext.currentTime + 0.2);
-    
-    gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    oscillator.start();
-    oscillator.stop(audioContext.currentTime + 0.3);
-  };
+  // Function to play a sound
+  const playSound = (type) => {
+    const sources = {
+      positive: "/sounds/positive.mp3",
+      negative: "/sounds/negative.mp3",
+      reset: "/sounds/reset.mp3",
+    };
   
-  // Function to play a negative score sound (sad downward tone)
-  const playNegativeSound = () => {
-    if (!audioContext) return;
-    
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    oscillator.type = 'sine';
-    oscillator.frequency.setValueAtTime(500, audioContext.currentTime);
-    oscillator.frequency.exponentialRampToValueAtTime(250, audioContext.currentTime + 0.3);
-    
-    gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    oscillator.start();
-    oscillator.stop(audioContext.currentTime + 0.4);
+    const src = sources[type];
+    if (!src) return;
+  
+    const sound = new Audio(src);
+    sound.volume = 0.5;
+    sound.play().catch((err) => {
+      console.error(`Error playing ${type} sound:`, err);
+    });
   };
 
   // Array of cute pastel background color options
@@ -90,7 +87,8 @@ export default function Home() {
         id, 
         name: newPlayerName.trim(), 
         score: 0,
-        colorClass: selectedColor 
+        colorClass: selectedColor,
+        history: [] // Initialize empty history array for each player
       },
     ]);
     setScoreInputs({ ...scoreInputs, [id]: "" });
@@ -104,16 +102,30 @@ export default function Home() {
 
     // Play appropriate sound based on score value
     if (value > 0) {
-      playPositiveSound();
+      playSound('positive');
     } else if (value < 0) {
-      playNegativeSound();
+      playSound('negative');
     }
 
-    // Update score and then sort by highest score
+    // Update score and add to player's history
     setPlayers((prev) => {
-      const updatedPlayers = prev.map((p) => 
-        p.id === id ? { ...p, score: p.score + value } : p
-      );
+      const updatedPlayers = prev.map((p) => {
+        if (p.id === id) {
+          const newScore = p.score + value;
+          const historyEntry = {
+            id: Date.now(),
+            value: value,
+            newTotal: newScore,
+            timestamp: new Date()
+          };
+          return { 
+            ...p, 
+            score: newScore,
+            history: [historyEntry, ...p.history].slice(0, 30) // Keep most recent 30 entries
+          };
+        }
+        return p;
+      });
       
       // Sort players by score in descending order
       return [...updatedPlayers].sort((a, b) => b.score - a.score);
@@ -133,11 +145,43 @@ export default function Home() {
     setScoreInputs(updatedScoreInputs);
   };
 
+  const resetAllScores = () => {
+    // Play the reset sound
+    playSound('reset');
+    
+    // Reset all player scores to 0 but maintain their other properties
+    setPlayers(players.map(player => {
+      // Only add a history entry if score wasn't already 0
+      let updatedHistory = player.history;
+      if (player.score !== 0) {
+        const historyEntry = {
+          id: Date.now(),
+          value: -player.score, // Negative of current score to reset to 0
+          newTotal: 0,
+          timestamp: new Date(),
+          isReset: true
+        };
+        updatedHistory = [historyEntry, ...player.history].slice(0, 30);
+      }
+      
+      return { 
+        ...player, 
+        score: 0,
+        history: updatedHistory
+      };
+    }));
+  };
+
   const handleKeyDown = (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
       addPlayer();
     }
+  };
+
+  // Format timestamp for display
+  const formatTime = (date) => {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   return (
@@ -184,43 +228,88 @@ export default function Home() {
         </div>
 
         {players.length > 0 ? (
-          <ul className="space-y-4">
-            {players.map((player) => (
-              <li
-                key={player.id}
-                className={`flex flex-col sm:flex-row items-center justify-between p-4 rounded-lg shadow-sm border border-purple-200 ${player.colorClass}`}
+          <>
+            <div className="mb-4 flex justify-center">
+              <button
+                onClick={resetAllScores}
+                className="px-6 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition shadow-sm"
               >
-                <div className="flex-grow">
-                  <p className="font-semibold text-lg text-purple-800">{player.name}</p>
-                  <p className="text-purple-700">Score: {player.score}</p>
-                </div>
+                🔄 Reset All Scores
+              </button>
+            </div>
+            <ul className="space-y-4 mb-6">
+              {players.map((player) => (
+                <li
+                  key={player.id}
+                  className={`rounded-lg shadow-sm border border-purple-200 ${player.colorClass} overflow-hidden`}
+                >
+                  <div className="flex flex-col sm:flex-row items-center justify-between p-4">
+                    <div className="flex-grow">
+                      <p className="font-semibold text-lg text-purple-800">{player.name}</p>
+                      <p className="text-purple-700">Score: {player.score}</p>
+                    </div>
 
-                <div className="flex items-center gap-2 mt-4 sm:mt-0">
-                  <input
-                    type="text"
-                    value={scoreInputs[player.id] || ""}
-                    onChange={(e) =>
-                      handleInputChange(player.id, e.target.value)
-                    }
-                    placeholder="+ / -"
-                    className="w-20 px-2 py-1 border-2 border-purple-200 rounded-md text-center bg-white text-purple-800"
-                  />
-                  <button
-                    onClick={() => updateScore(player.id)}
-                    className="px-3 py-1 bg-purple-400 text-white rounded-md hover:bg-purple-500 transition"
-                  >
-                    Apply
-                  </button>
-                  <button
-                    onClick={() => removePlayer(player.id)}
-                    className="px-3 py-1 bg-pink-400 text-white rounded-md hover:bg-pink-500 transition"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+                    <div className="flex items-center gap-2 mt-4 sm:mt-0">
+                      <input
+                        type="text"
+                        value={scoreInputs[player.id] || ""}
+                        onChange={(e) =>
+                          handleInputChange(player.id, e.target.value)
+                        }
+                        placeholder="+ / -"
+                        className="w-20 px-2 py-1 border-2 border-purple-200 rounded-md text-center bg-white text-purple-800"
+                      />
+                      <button
+                        onClick={() => updateScore(player.id)}
+                        className="px-3 py-1 bg-purple-400 text-white rounded-md hover:bg-purple-500 transition"
+                      >
+                        Apply
+                      </button>
+                      <button
+                        onClick={() => removePlayer(player.id)}
+                        className="px-3 py-1 bg-pink-400 text-white rounded-md hover:bg-pink-500 transition"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Player history section - always visible */}
+                  <div className="bg-white bg-opacity-50 border-t border-purple-100 p-2">
+                    {player.history.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <div className="flex space-x-2 py-1 px-2">
+                          {player.history.map((entry) => (
+                            <div 
+                              key={entry.id}
+                              className={`flex-shrink-0 px-2 py-1 rounded-md text-xs whitespace-nowrap ${
+                                entry.isReset
+                                  ? "bg-yellow-100 text-yellow-800"
+                                  : entry.value > 0
+                                    ? "bg-green-100 text-green-800" 
+                                    : "bg-red-100 text-red-800"
+                              }`}
+                            >
+                              <div className="font-medium">
+                                {entry.isReset ? "Reset" : entry.value > 0 ? "+" + entry.value : entry.value}
+                              </div>
+                              <div className="text-xs opacity-75">
+                                {formatTime(entry.timestamp)}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-1 text-purple-400 text-xs">
+                        No history yet
+                      </div>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
         ) : (
           <div className="text-center py-8 text-purple-400">
             ✨ Add players to start tracking scores! ✨
