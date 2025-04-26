@@ -124,26 +124,38 @@ export default function Home() {
     
     const player = players.find((p) => p.id === id);
     const newScore = player.score + delta;
+    const timestamp = new Date();
     
     // Update local state immediately
     setPlayers(prev => prev.map(p => 
       p.id === id 
-        ? { ...p, score: newScore, updated_at: new Date() }
+        ? { 
+            ...p, 
+            score: newScore, 
+            updated_at: timestamp,
+            history: [
+              { id: Date.now(), value: delta, timestamp, isReset: false },
+              ...(p.history || [])
+            ]
+          }
         : p
     ));
     
-    // Update database
+    // Update database - only update score and timestamp for now
     const { error } = await supabase
       .from("players")
-      .update({ score: newScore, updated_at: new Date() })
+      .update({ 
+        score: newScore, 
+        updated_at: timestamp
+      })
       .eq("id", id);
       
     if (error) {
-      console.error("Error updating score:", error);
+      console.error("Error updating score:", error.message);
       // Revert local state if database update fails
       setPlayers(prev => prev.map(p => 
         p.id === id 
-          ? { ...p, score: player.score }
+          ? { ...p, score: player.score, history: player.history }
           : p
       ));
       return;
@@ -156,16 +168,78 @@ export default function Home() {
   };
 
   const removePlayer = async (id) => {
+    // Update local state immediately
+    setPlayers(prev => prev.filter(p => p.id !== id));
+    setScoreInputs(prev => {
+      const newInputs = { ...prev };
+      delete newInputs[id];
+      return newInputs;
+    });
+
+    // Update database
     const { error } = await supabase.from("players").delete().eq("id", id);
-    if (error) console.error("Error removing player:", error);
+    
+    if (error) {
+      console.error("Error removing player:", error);
+      // Revert local state if database update fails
+      setPlayers(prev => [...prev, players.find(p => p.id === id)]);
+      setScoreInputs(prev => ({ ...prev, [id]: "" }));
+    }
   };
 
   const resetAllScores = async () => {
-    const { error } = await supabase
-      .from("players")
-      .update({ score: 0, updated_at: new Date() });
-    if (error) console.error("Error resetting scores:", error);
-    playSound("reset");
+    try {
+      const timestamp = new Date();
+      
+      // Update local state immediately
+      setPlayers(prev => prev.map(p => ({
+        ...p,
+        score: 0,
+        updated_at: timestamp,
+        history: [
+          { id: Date.now(), value: 0, timestamp, isReset: true },
+          ...(p.history || [])
+        ]
+      })));
+
+      // Update database - only update score and timestamp for now
+      const { data, error } = await supabase
+        .from("players")
+        .update({ 
+          score: 0, 
+          updated_at: timestamp
+        })
+        .gte('id', '00000000-0000-0000-0000-000000000000')
+        .select();
+      
+      if (error) {
+        console.error("Error resetting scores:", error.message);
+        // Revert local state if database update fails
+        setPlayers(prev => prev.map(p => ({
+          ...p,
+          score: p.score,
+          updated_at: p.updated_at,
+          history: p.history
+        })));
+        return;
+      }
+
+      // Update local state with the data from the database
+      if (data) {
+        setPlayers(data);
+      }
+      
+      playSound("reset");
+    } catch (err) {
+      console.error("Unexpected error in resetAllScores:", err);
+      // Revert local state on unexpected errors
+      setPlayers(prev => prev.map(p => ({
+        ...p,
+        score: p.score,
+        updated_at: p.updated_at,
+        history: p.history
+      })));
+    }
   };
 
   const handleKeyDown = (e) => {
