@@ -50,9 +50,10 @@ export default function Home() {
           event: "*", 
           schema: "public", 
           table: "players",
-          filter: "id=*" // Only listen to changes where id exists
+          filter: "*" // Listen to all changes
         },
         (payload) => {
+          console.log("Received update:", payload); // Debug log
           setPlayers((cur) => {
             let updated = [...cur];
             const { eventType, new: NEW, old: OLD } = payload;
@@ -72,7 +73,9 @@ export default function Home() {
           });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log("Subscription status:", status); // Debug log
+      });
 
     return () => {
       supabase.removeChannel(playersChannel);
