@@ -46,20 +46,24 @@ export default function Home() {
       .channel("public:players")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "players" },
+        { 
+          event: "*", 
+          schema: "public", 
+          table: "players",
+          filter: "id=*" // Only listen to changes where id exists
+        },
         (payload) => {
           setPlayers((cur) => {
             let updated = [...cur];
             const { eventType, new: NEW, old: OLD } = payload;
 
             if (eventType === "INSERT") {
-              updated.unshift({ ...NEW, history: NEW.history || [] });
+              // Check if player already exists before adding
+              if (!cur.some(p => p.id === NEW.id)) {
+                updated.unshift(NEW);
+              }
             } else if (eventType === "UPDATE") {
-              updated = cur.map((p) => 
-                p.id === NEW.id 
-                  ? { ...NEW, history: NEW.history || [] }
-                  : p
-              );
+              updated = cur.map((p) => (p.id === NEW.id ? NEW : p));
             } else if (eventType === "DELETE") {
               updated = cur.filter((p) => p.id !== OLD.id);
             }
