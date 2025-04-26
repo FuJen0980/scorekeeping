@@ -21,25 +21,26 @@ export default function Home() {
   useEffect(() => {
     if (!supabase) return; // Don't run if supabase isn't initialized
 
+    const fetchPlayers = async () => {
+      const { data, error } = await supabase
+        .from("players")
+        .select("*")
+        .order("updated_at", { ascending: false });
+      
+      if (error) console.error("Error fetching players:", error);
+      else {
+        setPlayers(data);
+        const inputs = {};
+        data.forEach((p) => (inputs[p.id] = ""));
+        setScoreInputs(inputs);
+      }
+    };
+
     // Initial fetch
-    supabase
-      .from("players")
-      .select("*")
-      .order("updated_at", { ascending: false })
-      .then(({ data, error }) => {
-        if (error) console.error("Error fetching players:", error);
-        else {
-          // Initialize history for each player
-          const playersWithHistory = data.map(player => ({
-            ...player,
-            history: player.history || []
-          }));
-          setPlayers(playersWithHistory);
-          const inputs = {};
-          data.forEach((p) => (inputs[p.id] = ""));
-          setScoreInputs(inputs);
-        }
-      });
+    fetchPlayers();
+
+    // Set up polling every 2 seconds
+    const pollInterval = setInterval(fetchPlayers, 2000);
 
     // Set up a real-time channel for INSERT, UPDATE, DELETE
     const playersChannel = supabase
@@ -50,34 +51,19 @@ export default function Home() {
           event: "*", 
           schema: "public", 
           table: "players",
-          filter: "*" // Listen to all changes
+          filter: "*"
         },
         (payload) => {
-          console.log("Received update:", payload); // Debug log
-          setPlayers((cur) => {
-            let updated = [...cur];
-            const { eventType, new: NEW, old: OLD } = payload;
-
-            if (eventType === "INSERT") {
-              // Check if player already exists before adding
-              if (!cur.some(p => p.id === NEW.id)) {
-                updated.unshift(NEW);
-              }
-            } else if (eventType === "UPDATE") {
-              updated = cur.map((p) => (p.id === NEW.id ? NEW : p));
-            } else if (eventType === "DELETE") {
-              updated = cur.filter((p) => p.id !== OLD.id);
-            }
-
-            return updated.sort((a, b) => b.score - a.score);
-          });
+          console.log("Received update:", payload);
+          fetchPlayers(); // Force a refresh when we get a real-time update
         }
       )
       .subscribe((status) => {
-        console.log("Subscription status:", status); // Debug log
+        console.log("Subscription status:", status);
       });
 
     return () => {
+      clearInterval(pollInterval);
       supabase.removeChannel(playersChannel);
     };
   }, [supabase]);
