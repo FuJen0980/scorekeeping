@@ -25,7 +25,7 @@ export default function Home() {
       const { data, error } = await supabase
         .from("players")
         .select("*")
-        .order("updated_at", { ascending: false });
+        .order("score", { ascending: false }); // Changed from updated_at to score for sorting
       
       if (error) console.error("Error fetching players:", error);
       else {
@@ -39,8 +39,8 @@ export default function Home() {
     // Initial fetch
     fetchPlayers();
 
-    // Set up polling every 2 seconds
-    const pollInterval = setInterval(fetchPlayers, 10000);
+    // Set up polling every 10 seconds instead of 2
+    const pollInterval = setInterval(fetchPlayers, 15000);
 
     // Set up a real-time channel for INSERT, UPDATE, DELETE
     const playersChannel = supabase
@@ -114,8 +114,8 @@ export default function Home() {
       return;
     }
     
-    // Update local state immediately
-    setPlayers(prev => [data, ...prev]);
+    // Update local state and sort by score in descending order
+    setPlayers(prev => [...prev, data].sort((a, b) => b.score - a.score));
     setScoreInputs(prev => ({ ...prev, [data.id]: "" }));
     setNewPlayerName("");
   };
@@ -132,17 +132,19 @@ export default function Home() {
       ...(player.history || [])
     ];
     
-    // Update local state immediately
-    setPlayers(prev => prev.map(p => 
-      p.id === id 
-        ? { 
-            ...p, 
-            score: newScore, 
-            updated_at: timestamp,
-            history: newHistory
-          }
-        : p
-    ));
+    // Update local state immediately and sort by score
+    setPlayers(prev => 
+      prev.map(p => 
+        p.id === id 
+          ? { 
+              ...p, 
+              score: newScore, 
+              updated_at: timestamp,
+              history: newHistory
+            }
+          : p
+      ).sort((a, b) => b.score - a.score) // Sort by score in descending order
+    );
     
     // Update database
     const { error } = await supabase
@@ -161,7 +163,7 @@ export default function Home() {
         p.id === id 
           ? { ...p, score: player.score, history: player.history }
           : p
-      ));
+      ).sort((a, b) => b.score - a.score)); // Keep sorted
       return;
     }
     
@@ -186,7 +188,7 @@ export default function Home() {
     if (error) {
       console.error("Error removing player:", error);
       // Revert local state if database update fails
-      setPlayers(prev => [...prev, players.find(p => p.id === id)]);
+      setPlayers(prev => [...prev, players.find(p => p.id === id)].sort((a, b) => b.score - a.score)); // Keep sorted
       setScoreInputs(prev => ({ ...prev, [id]: "" }));
     }
   };
@@ -210,7 +212,7 @@ export default function Home() {
           { id: Date.now(), value: 0, timestamp, isReset: true },
           ...(p.history || [])
         ]
-      })));
+      })).sort((a, b) => b.score - a.score)); // Still sort even though all scores are 0
 
       // Update database
       const { data, error } = await supabase
@@ -231,7 +233,7 @@ export default function Home() {
           score: p.score,
           updated_at: p.updated_at,
           history: p.history
-        })));
+        })).sort((a, b) => b.score - a.score)); // Keep sorted
         return;
       }
 
@@ -249,7 +251,7 @@ export default function Home() {
         score: p.score,
         updated_at: p.updated_at,
         history: p.history
-      })));
+      })).sort((a, b) => b.score - a.score)); // Keep sorted
     }
   };
 
